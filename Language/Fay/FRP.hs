@@ -2,14 +2,26 @@ module Language.Fay.FRP where
 
 import           Prelude
 
+
+infixr 3 ***
+infixr 3 &&&
+infixr 2 >>>, <<<
+infixr 1 ^>>, >>^
+infixr 1 ^<<, <<^
+-- infixr 5 <+>
+-- infixr 2 +++
+-- infixr 2 |||
+
 type Event a = [a]
 
 data Stream b a = Stream (b -> (a, Stream b a))
 
 data Coroutine i o = Coroutine { runC :: i -> (o, Coroutine i o) }
 
+
 -- instance Functor (Coroutine i) where
 fmap = fmapC
+(<$>) = fmapC
 
 fmapC :: (a -> o) -> Coroutine i a -> Coroutine i o
 fmapC f co = Coroutine $ \i ->
@@ -28,6 +40,30 @@ cof `appC` cox = Coroutine $ \i ->
         let (f, cof') = runC cof i
             (x, cox') = runC cox i
         in (f x, cof' `appC` cox')
+
+-- | A variant of '<*>' with the arguments reversed.
+(<**>) :: Coroutine i a -> Coroutine i (a -> o) -> Coroutine i o
+(<**>) = liftC2 (flip ($))
+
+-- | Lift a function to actions.
+-- This function may be used as a value for `fmap` in a `Functor` instance.
+liftC :: (a -> o) -> Coroutine i a -> Coroutine i o
+liftC f a = pure f <*> a
+
+-- | Lift a binary function to actions.
+liftC2
+  :: (a1 -> a -> o)
+     -> Coroutine i a1 -> Coroutine i a -> Coroutine i o
+liftC2 f a b = f <$> a <*> b
+
+-- | Lift a ternary function to actions.
+liftC3
+  :: (a2 -> a1 -> a -> o)
+     -> Coroutine i a2
+     -> Coroutine i a1
+     -> Coroutine i a
+     -> Coroutine i o
+liftC3 f a b c = f <$> a <*> b <*> c
 
 
 -- instance Category Coroutine where
@@ -49,21 +85,53 @@ cof <<< cog = Coroutine $ \i ->
 -- instance Arrow Coroutine where
 arr = arrC
 first = firstC
+second = secondC
+
+(***) :: Coroutine i o -> Coroutine i' o' -> Coroutine (i, i') (o, o')
+f *** g = first f >>> second g
+
+(&&&) :: Coroutine i o -> Coroutine i o' -> Coroutine i (o, o')
+f &&& g = arr (\a -> (a, a)) >>> f *** g
+
 
 arrC :: (i -> o) -> Coroutine i o
 arrC f = Coroutine $ \i -> (f i, arr f)
 
-firstC :: Coroutine i t -> Coroutine (i, t1) (t, t1)
+firstC :: Coroutine i o -> Coroutine (i, i') (o, i')
 firstC co = Coroutine $ \(a,b) ->
         let (c, co') = runC co a
         in ((c,b), firstC co')
+
+secondC :: Coroutine i o -> Coroutine (i', i) (i', o)
+secondC f = arr swap >>> first f >>> arr swap
+  where
+    swap :: (x,y) -> (y,x)
+    swap (x,y) = let (y,x) = (x, y) in (y, x)
+
+-- Arrow utils
+-- | Precomposition with a pure function.
+(^>>) :: (b -> c) -> Coroutine c d -> Coroutine b d
+f ^>> a = arr f >>> a
+
+-- | Postcomposition with a pure function.
+(>>^) :: Coroutine i o -> (o -> o') -> Coroutine i o'
+a >>^ f = a >>> arr f
+
+-- | Precomposition with a pure function (right-to-left variant).
+(<<^) :: Coroutine i o -> (i' -> i) -> Coroutine i' o
+a <<^ f = a <<< arr f
+
+-- | Postcomposition with a pure function (right-to-left variant).
+(^<<) :: (o -> o') -> Coroutine i o -> Coroutine i o'
+f ^<< a = arr f <<< a
 
 -- instance ArrowLoop Coroutine
 loop = loopC
 
 loopC :: Coroutine (b,d) (c,d) -> Coroutine b c
 loopC co = Coroutine $ \b ->
-        let ((c,d),co') = runC co (b,d)
+        let (c',co') = runC co (b,d)
+            (c,d) = c'
         in (c, loopC co')
 
 evalList :: Coroutine i o -> [i] -> [o]
@@ -71,7 +139,7 @@ evalList _  []     = []
 evalList co (x:xs) = o:evalList co' xs
     where (o, co') = runC co x
 
-intsFrom :: Integer -> Coroutine () Integer
+intsFrom :: Double -> Coroutine () Double
 intsFrom n = Coroutine $ \_ -> (n, intsFrom (n+1))
 
 scan :: (a -> b -> a) -> a -> Coroutine b a
@@ -106,6 +174,9 @@ scanE :: (a -> e -> a) -> a -> Coroutine (Event e) a
 scanE f i = Coroutine $ step i where
     step a e = let a' = foldl f a e in (a', scanE f a')
 
+mergeE :: Coroutine i (Event e) -> Coroutine i (Event e) -> Coroutine i (Event e)
+mergeE = liftC2 (++)
+
 -- | Split a value into (current value, previous value) using the given
 --   initial value as the previous value during first call.
 withPrevious :: a -> Coroutine a (a, a)
@@ -118,12 +189,12 @@ delay :: a -> Coroutine a a
 delay a = withPrevious a >>> arr snd
 
 -- | Integrate a numerical value over time
-integrate :: Num a => a -> Coroutine a a
+integrate :: Double -> Coroutine Double Double
 integrate = scan (+)
 
 -- | Derivate a numerical value over time (i.e. return the delta between current
 --   and previous time-step.
-derivate :: Num a => Coroutine a a
+derivate :: Coroutine Double Double
 derivate = withPrevious 0 >>> zipWithC (-)
 
 -- | Trigger an event whenever the value satisfies the given predicate function
