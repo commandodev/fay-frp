@@ -1,6 +1,8 @@
+{-# LANGUAGE NoImplicitPrelude #-}
+
 module Language.Fay.FRP where
 
-import           Prelude
+import           Language.Fay.Prelude
 
 
 infixr 3 ***
@@ -130,14 +132,24 @@ loop = loopC
 
 loopC :: Coroutine (b,d) (c,d) -> Coroutine b c
 loopC co = Coroutine $ \b ->
-        let (c',co') = runC co (b,d)
-            (c,d) = c'
+        let ((c, d), co') = runC co (b,d)
         in (c, loopC co')
 
 evalList :: Coroutine i o -> [i] -> [o]
 evalList _  []     = []
 evalList co (x:xs) = o:evalList co' xs
     where (o, co') = runC co x
+
+takeN :: Double -> [i] -> Coroutine i o -> [o]
+takeN 0 _  _ = []
+takeN _ [] _ = []
+takeN n (i:is) co = o:takeN (n-1) is co' where
+  (o, co') = runC co i
+
+take :: Double -> [a] -> [a]
+take n _      | n <= 0 =  []
+take _ []              =  []
+take n (x:xs)          =  x : take (n-1) xs
 
 intsFrom :: Double -> Coroutine () Double
 intsFrom n = Coroutine $ \_ -> (n, intsFrom (n+1))
@@ -203,3 +215,11 @@ watch f = Coroutine $ \i ->
     if f i
         then ([i], watch f)
         else ([], watch f)
+
+
+curry                   :: ((a, b) -> c) -> a -> b -> c
+curry f x y             =  f (x, y)
+
+-- | 'uncurry' converts a curried function to a function on pairs.
+uncurry                 :: (a -> b -> c) -> ((a, b) -> c)
+uncurry f p             =  f (fst p) (snd p)
