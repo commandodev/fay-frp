@@ -7,14 +7,14 @@ import           Language.Fay.FRP
 import           Language.Fay.JQuery
 import           Language.Fay.Prelude
 
-import           Debug.Trace
 
 main :: Fay ()
 
 main = ready $ do
   logS "test"
-  forM_ (takeN 4 [Up, Up, Same, Down] game)
-        (\[r1, r2] -> log2 (showRect r1) (showRect r2))
+  let fst4 = (takeN 4 [Up, Up, Same, Down] game)
+  log fst4
+  forM_ fst4 (\[r1, r2] -> log2 (showRect r1) (showRect r2))
 
 
 type Pos       = (Double, Double)
@@ -39,7 +39,7 @@ startPos = 200
 
 ballInitPos = (400,200)
 ballSize    = (8,8)
-ballInitVel = (-6, -6)
+ballInitVel = (0-6, 0-6)
 
 topWall    = 10
 bottomWall = 590
@@ -67,7 +67,7 @@ mkRect (x,y) (w,h) = Rect ((x-w',y-h'),(w,h)) where
 
 -- Has the ball hit the paddle
 batCollision :: (PlayerPos, BallPos) -> Bool
-batCollision ((px,py),(bx,by)) = trace (show (by,by)) $ abs (px-bx) < w' && abs (py-by) < h' where
+batCollision ((px,py),(bx,by)) = abs (px-bx) < w' && abs (py-by) < h' where
     w' = (bw + pw) `div` 2
     h' = (bh + ph) `div` 2
     (bw,bh) = ballSize
@@ -84,9 +84,9 @@ wallBounce = watch wallCollision >>> constE VBounce
 batBounce :: Coroutine (PlayerPos, BallPos) (Event BallBounce)
 batBounce = watch batCollision >>> constE HBounce
 
-traceC :: Show a => Coroutine a a
-traceC = arr (\x ->
-               trace (show x) x)
+-- traceC :: Show a => Coroutine a a
+-- traceC = arr (\x ->
+--                trace (show x) x)
 
 -- Inputs
 playerPos :: Coroutine Keyboard PlayerPos
@@ -114,7 +114,6 @@ ballPos = loopC $ arr (\(ppos, bpos) -> ((ppos, bpos), bpos))
     >>> scanE bounce ballInitVel
     >>> scan vecAdd ballInitPos
     >>> withPrevious ballInitPos
-
 
 resettingBallPos :: Coroutine PlayerPos BallPos
 resettingBallPos = loopC $ restartWhen ballPos >>> idC &&& watch outOfBounds
