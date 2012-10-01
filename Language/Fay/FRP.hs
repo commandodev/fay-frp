@@ -108,7 +108,7 @@ secondC :: Coroutine i o -> Coroutine (i', i) (i', o)
 secondC f = arr swap >>> first f >>> arr swap
   where
     swap :: (x,y) -> (y,x)
-    swap (x,y) = let (y,x) = (x, y) in (y, x)
+    swap tup = (snd tup, fst tup) -- ~(x,y) = (y,x) --let (y,x) = (x, y) in (y, x)
 
 -- Arrow utils
 -- | Precomposition with a pure function.
