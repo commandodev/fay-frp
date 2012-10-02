@@ -57,5 +57,5 @@ buildFay _ _ pkgdesc buildinfo = do
              , configPrettyPrint       = True
              , configTypecheck         = False
              , configHtmlWrapper       = True
-             , configHtmlJSLibs        = ["jquery.min.js"]
+             , configHtmlJSLibs        = ["jquery.js"]
              }
