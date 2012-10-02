@@ -107,8 +107,8 @@ firstC co = Coroutine $ \(a,b) ->
 secondC :: Coroutine i o -> Coroutine (i', i) (i', o)
 secondC f = arr swap >>> first f >>> arr swap
   where
-    swap :: (x,y) -> (y,x)
-    swap tup = (snd tup, fst tup) -- ~(x,y) = (y,x) --let (y,x) = (x, y) in (y, x)
+    swap :: (x, y) -> (y, x)
+    swap tup = let (x, y) = tup in (y, x)
 
 -- Arrow utils
 -- | Precomposition with a pure function.
@@ -147,10 +147,9 @@ takeN n (i:is) co = o:takeN (n-1) is co' where
   (o, co') = runC co i
 
 take :: Double -> [a] -> [a]
-take n _      | n <= 0 =  []
 take _ []              =  []
-take n (x:xs)          =  x : take (n-1) xs
-
+take n (x:xs) | n > 0  =  x : take (n-1) xs
+              | n <= 0 = []
 intsFrom :: Double -> Coroutine () Double
 intsFrom n = Coroutine $ \_ -> (n, intsFrom (n+1))
 
