@@ -7,15 +7,31 @@ import           Language.Fay.FRP
 import           Language.Fay.JQuery
 import           Language.Fay.Prelude
 
+void :: Fay a -> Fay ()
+void m = m >> return ()
 
 main :: Fay ()
-
 main = ready $ do
   logS "test"
   let fst4 = (takeN 4 [Up, Up, Same, Down] game)
-  log fst4
-  forM_ fst4 (\[r1, r2] -> log2 (showRect r1) (showRect r2))
+  let repeat x = x:repeat x
+  let strPos = ballPos >>> arr (log . show)
+  let tups = takeN 5 [1..] (withPrevious 0 >>> (arr (uncurry showTup)))
+  --forM_ (takeN 5 [1..] (arr (uncurry showTup) >>> idC &&& delay 1)) $ uncurry void
+  let facs = takeN 5 [1..5] (fac >>> arr logD)
+  forM_ tups void
+  forM_ facs void
+  logS "Done"
+  where
+    fac :: Coroutine Double Double
+    fac = loopC (arr (uncurry (*)) >>> idC &&& delay 1)
 
+showTup :: Double -> Double -> Fay ()
+showTup = ffi "console.log(%1, %2)"
+
+
+logD :: Double -> Fay ()
+logD = ffi "console.log(%1)"
 
 type Pos       = (Double, Double)
 type Size      = (Double, Double)
@@ -142,3 +158,6 @@ showRect (Rect (p1, p2)) ="(" ++ (show p1) ++ ", " ++ show p2 ++ ")"
 
 logS :: String -> Fay ()
 logS = ffi "console.log(%1)"
+
+logF :: Foreign a => a -> Fay ()
+logF = ffi "console.log(_(%1))"
