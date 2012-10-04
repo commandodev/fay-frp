@@ -18,20 +18,32 @@ main = ready $ do
   let strPos = ballPos >>> arr (log . show)
   let tups = takeN 5 [1..] (withPrevious 0 >>> (arr (uncurry showTup)))
   --forM_ (takeN 5 [1..] (arr (uncurry showTup) >>> idC &&& delay 1)) $ uncurry void
-  let facs = takeN 5 [1..5] (fac >>> arr logD)
-  forM_ tups void
-  forM_ facs void
+  let facs = takeN 5 [1..5] fac
+  logDs facs
+  logD $ test 3
   logS "Done"
+  forM_ (evalList strPos [(10, 200), (10, 201), (10, 300), (10, 200)]) void
   where
     fac :: Coroutine Double Double
-    fac = loopC (arr (uncurry (*)) >>> idC &&& delay 1)
+    fac = loopC (arr (uncurry mult) >>> idC &&& delay 1)
 
 showTup :: Double -> Double -> Fay ()
 showTup = ffi "console.log(%1, %2)"
 
+plus a b = a + b
+mult a b = a * b
+
+loopPlus :: Coroutine Double Double
+loopPlus = loopC $ arr (\(a, b) -> (a `plus` b, a))
+
+test :: Double -> Double
+test a = let (n, co) = runC loopPlus a in fst $ runC co a
 
 logD :: Double -> Fay ()
 logD = ffi "console.log(%1)"
+
+logDs :: [Double] -> Fay ()
+logDs = ffi "console.log(%1)"
 
 type Pos       = (Double, Double)
 type Size      = (Double, Double)
